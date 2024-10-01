@@ -1,41 +1,65 @@
 let timeout;
+let targetLanguage = 'en'; // Default target language
+
+chrome.storage.sync.get(['selectedLanguage'], (result) => {
+    targetLanguage = result.selectedLanguage || 'en'; // Use saved language or default to English
+    addCustomDiv(); // Initialize translation with saved language
+});
 
 function addCustomDiv() {
     if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => {
+    timeout = setTimeout(async () => {
         const messageElements = document.querySelectorAll('.message-in, .message-out');
 
-        messageElements.forEach(message => {
-            // Check if the custom div already exists to avoid duplicates
-            if (!message.querySelector('.custom-div')) {
+        for (const message of messageElements) {
+            // Check for an existing custom div
+            let existingDiv = message.querySelector('.custom-div');
+            if (!existingDiv) {
                 const customDiv = document.createElement('div');
-
-                // Get the message text
                 const messageText = message.querySelector('.selectable-text')?.innerText || "No text available";
+                const translatedText = await translateText(messageText, targetLanguage);
 
-                // Set the custom div content to the same message text
-                customDiv.innerText = messageText;
-                customDiv.classList.add('custom-div'); // Add a class for identification
+                customDiv.innerText = translatedText;
+                customDiv.classList.add('custom-div');
                 customDiv.style.marginTop = "10px";
 
                 // Style based on message type
-                if (message.classList.contains('message-out')) {
-                    customDiv.style.textAlign = "right"; // Align for outgoing messages
-                    customDiv.style.color = "green"; // Optional: Change color for outgoing
-                } else {
-                    customDiv.style.textAlign = "left"; // Align for incoming messages
-                    customDiv.style.color = "blue"; // Optional: Change color for incoming
-                }
+                customDiv.style.textAlign = message.classList.contains('message-out') ? 'right' : 'left';
+                customDiv.style.color = message.classList.contains('message-out') ? 'green' : ''; 
 
-                // Append the custom div as the last child of the message
                 message.appendChild(customDiv);
+            } else {
+                // Update existing div if it exists
+                const messageText = message.querySelector('.selectable-text')?.innerText || "No text available";
+                const translatedText = await translateText(messageText, targetLanguage);
+                existingDiv.innerText = translatedText; // Update the text
             }
-        });
-    }, 300); // Adjust the debounce time as needed
+        }
+    }, 300);
 }
 
-// Observe changes in the DOM
+
+async function translateText(text, targetLang) {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        return data[0][0][0]; // Extract the translated text
+    } catch (error) {
+        console.error('Error translating text:', error);
+        return text; // Fallback to original text on error
+    }
+}
+
 const observer = new MutationObserver(addCustomDiv);
 observer.observe(document.body, { childList: true, subtree: true });
 
-
+// Listen for language changes from the popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "changeLanguage") {
+        targetLanguage = request.language;
+        addCustomDiv(); // Re-translate existing messages
+        sendResponse({ status: "success" }); // Send a response back to the popup
+    }
+});
