@@ -25,8 +25,7 @@ function addCustomDiv() {
 
                 // Style based on message type
                 customDiv.style.textAlign = message.classList.contains('message-out') ? 'right' : 'left';
-                customDiv.style.color = message.classList.contains('message-out') ? 'green' : ''; 
-
+                customDiv.style.color = message.classList.contains('message-out') ? 'green' : 'red'; 
                 message.appendChild(customDiv);
             } else {
                 // Update existing div if it exists
